@@ -1,0 +1,202 @@
+# This code should be copy-pasted into a lovelace card.
+
+type: custom:config-template-card
+variables:
+  entsoe_sensor: '''sensor.entsoe_average_electricity_price'''
+  entsoe_sensor_highest: '''sensor.entsoe_highest_energy_price'''
+  entsoe_sensor_lowest: '''sensor.entsoe_lowest_energy_price'''
+  entsoe_sensor_current: '''sensor.entsoe_current_electricity_market_price'''
+  grid_import_sensor: '''sensor.sigen_accumulated_grid_energy_import'''
+  grid_export_sensor: '''sensor.sigen_accumulated_grid_energy_export'''
+  currency: ''' EUR'''
+  decimals_in_prices: 3
+  decimals_in_energy: 3
+  chart_price_cutoff_coerficient: 0.1
+  offset: '''-00min'''
+  series_opacity: 0.4
+  chart_title: '''Electricity prices today'''
+  total_purchease_price_text: '''Total purchease price'''
+  grid_import_text: '''Grid Import'''
+  grid_export_text: '''Grid Export'''
+  lowest_price_text: '''Lowest to come'''
+  highest_price_text: '''Highest to come'''
+  price_now_text: '''Price now'''
+  now_text: '''Now'''
+
+  set_low_bottom_threshold_entsoe_price: |
+    values_min_max => {
+      return parseFloat(values_min_max[0]) + parseFloat(((values_min_max[1]) - parseFloat(values_min_max[0])) /10)
+    }
+  set_low_threshold_entsoe_price: |
+    values_min_max => {
+      return parseFloat(values_min_max[0]) + parseFloat(((values_min_max[1]) - parseFloat(values_min_max[0])) /3)
+    }
+  set_high_threshold_entsoe_price: |
+    values_min_max => {
+      return parseFloat(values_min_max[0]) 
+      + (( parseFloat(values_min_max[1]) - parseFloat(values_min_max[0]) ) /3) * 2
+    }
+  set_high_top_threshold_entsoe_price: |
+    values_min_max => {
+      return parseFloat(values_min_max[0]) + parseFloat(((values_min_max[1]) - parseFloat(values_min_max[0])) /10)*9
+    }
+entities:
+  - ${entsoe_sensor}
+card:
+  type: custom:apexcharts-card
+  graph_span: ${ states[entsoe_sensor].attributes.prices.length + 'h' }
+  yaxis:
+    - id: y1
+      min: ${parseFloat(states[entsoe_sensor_lowest].state)}
+      max: auto
+      apex_config:
+        opposite: false
+        forceNiceScale: true
+        decimalsInFloat: ${decimals_in_prices}
+        labels:
+          formatter: |
+            ${"EVAL:function(value) {return value.toFixed(0) + '" + currency + "'}"
+    - id: y2
+      min: 0
+      max: auto
+      apex_config:
+        opposite: true
+        forceNiceScale: true
+        decimalsInFloat: ${decimals_in_energy}
+        labels:
+          formatter: |
+            EVAL:function(value) {
+              return value.toFixed(1) +" kWh";
+            }
+  apex_config:
+    chart:
+      height: 340px
+    legend:
+      show: false
+    title:
+      floating: false
+      align: center
+      style:
+        fontSize: 20px
+        fontWeight: bold
+    xaxis:
+      labels:
+        datetimeFormatter:
+          hour: HH:mm
+  show:
+    last_updated: true
+  experimental:
+    color_threshold: true
+    brush: true
+  brush:
+    selection_span: ${ states[entsoe_sensor].attributes.prices.length + 'h' }
+  header:
+    title: ${chart_title}
+    show: true
+    show_states: true
+    colorize_states: true
+  span:
+    start: day
+  now:
+    show: true
+    label: ${now_text}
+  series:
+    - entity: ${entsoe_sensor}
+      yaxis_id: y1
+      name: ${total_purchease_price_text}
+      offset: ${offset}
+      float_precision: ${decimals_in_prices}
+      show:
+        extremas: true
+        in_header: false
+        header_color_threshold: true
+      type: area
+      stroke_width: 0
+      data_generator: |
+        return entity.attributes.prices.map((entry) => { 
+        return [new Date(entry.time).getTime(), entry.price];
+        });
+      color_threshold:
+        - value: -1000
+          color: '#30c752'
+          opacity: ${series_opacity}
+        - value: >-
+            ${set_low_bottom_threshold_entsoe_price([states[entsoe_sensor_lowest].state,states[entsoe_sensor_highest].state])}
+          color: '#28a745'
+          opacity: ${series_opacity}
+        - value: >-
+            ${set_low_threshold_entsoe_price([states[entsoe_sensor_lowest].state,states[entsoe_sensor_highest].state])}
+          color: '#ffed4a'
+          opacity: ${series_opacity}
+        - value: >-
+            ${set_high_threshold_entsoe_price([states[entsoe_sensor_lowest].state,states[entsoe_sensor_highest].state])}
+          color: '#fd7e14'
+          opacity: ${series_opacity}
+        - value: >-
+            ${set_high_top_threshold_entsoe_price([states[entsoe_sensor_lowest].state,states[entsoe_sensor_highest].state])}
+          color: '#dc3545'
+          opacity: ${series_opacity}
+    - entity: ${entsoe_sensor}
+      color: black
+      stroke_width: 5
+      float_precision: 2
+      show:
+        in_brush: true
+        in_chart: false
+    - entity: ${grid_import_sensor}
+      yaxis_id: y2
+      name: ${grid_import_text}
+      color: '#ff0066'
+      float_precision: ${decimals_in_energy}
+      show:
+        extremas: false
+        in_header: false
+        header_color_threshold: true
+      type: line
+      stroke_width: 3
+      extend_to: false
+      group_by:
+        func: delta
+        duration: 1h
+    - entity: ${grid_export_sensor}
+      yaxis_id: y2
+      name: ${grid_export_text}
+      color: '#0099cc'
+      float_precision: ${decimals_in_energy}
+      show:
+        extremas: false
+        in_header: false
+        header_color_threshold: true
+      type: line
+      stroke_width: 3
+      extend_to: false
+      group_by:
+        func: delta
+        duration: 1h
+    - entity: ${entsoe_sensor_lowest}
+      type: column
+      color: '#28a745'
+      float_precision: ${decimals_in_prices}
+      stroke_width: 2
+      name: ${lowest_price_text}
+      show:
+        in_chart: false
+        legend_value: false
+    - entity: ${entsoe_sensor_current}
+      name: ${price_now_text}
+      color: orange
+      type: column
+      show:
+        in_chart: false
+      float_precision: ${decimals_in_prices}
+    - entity: ${entsoe_sensor_highest}
+      type: column
+      color: '#dc3545'
+      float_precision: ${decimals_in_prices}
+      stroke_width: 1
+      name: ${highest_price_text}
+      show:
+        in_chart: false
+        legend_value: false
+layout_options:
+  grid_columns: full
